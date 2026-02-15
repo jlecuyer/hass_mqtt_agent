@@ -71,6 +71,7 @@ jobs:
 
   test-import:
     name: Test Import on ${{ matrix.os }}
+    needs: test  # Run after tests pass
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

@@ -63,9 +63,49 @@ agent:
 - Game running (yes/no)
 ## Documentation
 - [QUICKSTART.md](docs/QUICKSTART.md) - Detailed setup
+- [TESTING.md](docs/TESTING.md) - Testing guide (65+ tests)
 - [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Common issues
 - [CROSS_PLATFORM.md](docs/CROSS_PLATFORM.md) - Platform differences
 - [BUILD.md](docs/BUILD.md) - Build from source
+
+## Development
+
+### Running Tests
+
+Run the full test suite with coverage:
+```bash
+make test
+# or
+python scripts/run_tests.py
+```
+
+Quick test without coverage:
+```bash
+make test-quick
+# or
+pytest tests/ -v
+```
+
+Unit tests only:
+```bash
+make test-unit
+# or
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+View coverage report:
+```bash
+make test-cov
+```
+
+### Install Development Dependencies
+
+```bash
+pip install -e ".[dev]"
+```
+
+This installs pytest, pytest-cov, and other development tools.
+
 ## Requirements
 - Python 3.10+
 - MQTT Broker (Mosquitto)
