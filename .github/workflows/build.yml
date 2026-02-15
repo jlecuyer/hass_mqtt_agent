@@ -2,62 +2,105 @@ name: Build and Release
 
 on:
   push:
+    branches: [ main, develop ]
     tags:
-      - 'v*'  # Trigger on version tags (e.g., v0.1.0, v1.0.0)
-  workflow_dispatch:  # Allow manual triggering
+      - '[0-9]+.[0-9]+.[0-9]+'  # Match version tags (e.g., 1.0.0, 2.5.3)
   pull_request:
     branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   build:
-    name: Build Python Wheel
-    runs-on: windows-latest  # Build on Windows for Windows-specific dependencies
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.11', '3.12']
+      fail-fast: false
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build wheel setuptools
+          pip install -r requirements.txt
+          pip install build wheel setuptools pyinstaller
 
-      - name: Build wheel
+      - name: Get version
+        id: get_version
+        shell: bash
         run: |
-          python -m build --wheel
+          VERSION=$(python -c "import re; content = open('pyproject.toml').read(); print(re.search(r'version\s*=\s*\"([^\"]+)\"', content).group(1))")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
 
-      - name: Build source distribution
+      - name: Run build script
+        shell: bash
         run: |
-          python -m build --sdist
+          python scripts/build.py
 
-      - name: Upload wheel artifact
+      - name: List artifacts
+        shell: bash
+        run: |
+          echo "Build artifacts:"
+          ls -lh build/${{ steps.get_version.outputs.version }}/
+
+      - name: Upload artifacts (Windows)
+        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: python-wheel
-          path: dist/*.whl
+          name: windows-py${{ matrix.python-version }}-artifacts
+          path: build/${{ steps.get_version.outputs.version }}/*
           retention-days: 30
 
-      - name: Upload source distribution artifact
+      - name: Upload artifacts (Linux)
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: python-sdist
-          path: dist/*.tar.gz
+          name: linux-py${{ matrix.python-version }}-artifacts
+          path: build/${{ steps.get_version.outputs.version }}/*
           retention-days: 30
 
-      - name: List built files
+  test-import:
+    name: Test Import on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.11', '3.12']
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
         run: |
-          ls -la dist/
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test import
+        run: |
+          python -c "import main; print('Import successful')"
 
   release:
     name: Create GitHub Release
-    needs: build
+    needs: [build, test-import]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')  # Only on version tags
+    if: startsWith(github.ref, 'refs/tags/')
 
     permissions:
       contents: write
@@ -66,36 +109,88 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download wheel artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: python-wheel
-          path: dist/
+      - name: Get version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
 
-      - name: Download source distribution artifact
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: python-sdist
-          path: dist/
+          path: artifacts/
+
+      - name: Organize release artifacts
+        run: |
+          mkdir -p release/
+          
+          # Copy wheel (from any Python version, they're the same)
+          find artifacts/ -name "*.whl" -exec cp {} release/ \; -quit
+          
+          # Copy Windows executable (prefer Python 3.10 build)
+          find artifacts/windows-py3.10-artifacts/ -name "*.exe" -exec cp {} release/ \; 2>/dev/null || \
+          find artifacts/windows-*/  -name "*.exe" -exec cp {} release/ \; -quit
+          
+          # Copy Linux binary (prefer Python 3.10 build)
+          find artifacts/linux-py3.10-artifacts/ -type f ! -name "*.whl" ! -name "checksums.txt" -exec cp {} release/ \; 2>/dev/null || \
+          find artifacts/linux-*/ -type f ! -name "*.whl" ! -name "checksums.txt" -exec cp {} release/ \; -quit
+          
+          # Copy checksums
+          find artifacts/ -name "checksums.txt" -exec cp {} release/checksums.txt \; -quit
+          
+          echo "Release artifacts:"
+          ls -lh release/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            dist/*.whl
-            dist/*.tar.gz
+          name: Release ${{ steps.get_version.outputs.version }}
+          files: release/*
           generate_release_notes: true
           draft: false
           prerelease: false
+          body: |
+            ## HASS MQTT Agent v${{ steps.get_version.outputs.version }}
+            
+            ### Downloads
+            
+            - **Windows**: `hass_mqtt_agent_${{ steps.get_version.outputs.version }}.exe`
+            - **Linux**: `hass_mqtt_agent_${{ steps.get_version.outputs.version }}`
+            - **Python Wheel**: `hass_mqtt_agent-${{ steps.get_version.outputs.version }}-py3-none-any.whl`
+            
+            ### Installation
+            
+            **Windows Executable:**
+            ```powershell
+            # Download and run the .exe file
+            .\hass_mqtt_agent_${{ steps.get_version.outputs.version }}.exe
+            ```
+            
+            **Linux Binary:**
+            ```bash
+            # Download and make executable
+            chmod +x hass_mqtt_agent_${{ steps.get_version.outputs.version }}
+            ./hass_mqtt_agent_${{ steps.get_version.outputs.version }}
+            ```
+            
+            **Python Wheel:**
+            ```bash
+            pip install hass_mqtt_agent-${{ steps.get_version.outputs.version }}-py3-none-any.whl
+            ```
+            
+            ### Verify Downloads
+            
+            Check `checksums.txt` for SHA256 hashes of all files.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release Summary
         run: |
-          echo "## Release Created! 🎉" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Version: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "## Release ${{ steps.get_version.outputs.version }} Created! 🎉" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Artifacts:" >> $GITHUB_STEP_SUMMARY
-          ls -lh dist/ >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -lh release/ >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 

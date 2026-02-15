@@ -1,82 +1,265 @@
-# Building the Wheel
+# Building the Distribution Packages
 
-This document explains how to build the Python wheel distribution for the Home Assistant MQTT Agent.
+This document explains how to build distribution packages for the HASS MQTT Agent.
+
+## Build Outputs
+
+The build process creates three types of distributable packages:
+
+1. **Python Wheel** (`.whl`) - Cross-platform, requires Python
+2. **Windows Executable** (`.exe`) - Standalone Windows application
+3. **Linux Binary** - Standalone Linux application
+
+All artifacts are organized in version-specific folders: `build/<version>/`
+
+Example:
+```
+build/
+└── 0.1.0/
+    ├── hass_mqtt_agent-0.1.0-py3-none-any.whl
+    ├── hass_mqtt_agent_0.1.0.exe
+    ├── hass_mqtt_agent_0.1.0
+    └── checksums.txt
+```
 
 ## Prerequisites
 
+### All Platforms
+
 - Python 3.10 or higher
-- `build` package installed
+- pip package manager
+
+### Install Build Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+This installs:
+- `build` - For building wheels
+- `pyinstaller` - For creating executables
+- All project dependencies
 
 ## Quick Build
 
-### Install Build Tools
+### Using the Build Script
+
+The easiest way to build is using the included build script:
 
 ```bash
-pip install build
+# On any platform
+python scripts/build.py
 ```
 
-### Build the Wheel
+**What it does:**
+1. ✅ Cleans previous build artifacts
+2. ✅ Builds Python wheel
+3. ✅ Builds platform-specific executable (Windows .exe or Linux binary)
+4. ✅ Organizes all artifacts into `build/<version>/`
+5. ✅ Creates SHA256 checksums
+
+**Output:**
+```
+build/0.1.0/
+├── hass_mqtt_agent-0.1.0-py3-none-any.whl    # Wheel (all platforms)
+├── hass_mqtt_agent_0.1.0.exe                  # Windows (if on Windows)
+├── hass_mqtt_agent_0.1.0                      # Linux (if on Linux)
+└── checksums.txt                              # SHA256 hashes
+```
+
+### Building on Different Platforms
+
+**To get all three artifacts**, you need to run the build script on both platforms:
+
+1. **On Windows:**
+   ```powershell
+   python scripts/build.py
+   # Creates: wheel + Windows .exe
+   ```
+
+2. **On Linux:**
+   ```bash
+   python scripts/build.py
+   # Creates: wheel + Linux binary
+   ```
+
+## Manual Build Steps
+
+If you prefer to build manually:
+
+## Manual Build Steps
+
+If you prefer to build manually:
+
+### 1. Build Python Wheel
 
 ```bash
-# Build both wheel and source distribution
-python -m build
-
-# Or build only the wheel
 python -m build --wheel
-
-# Or build only source distribution
-python -m build --sdist
 ```
 
-The built files will be in the `dist/` directory:
-- `hass_mqtt_agent-0.1.0-py3-none-any.whl` - Wheel distribution
-- `hass_mqtt_agent-0.1.0.tar.gz` - Source distribution
+Output: `dist/hass_mqtt_agent-<version>-py3-none-any.whl`
 
-## Installing from Wheel
+### 2. Build Windows Executable
 
-Once built, you can install the wheel:
+On Windows:
+
+```powershell
+pyinstaller --onefile `
+  --name hass_mqtt_agent `
+  --add-data "config.yaml.example;." `
+  --add-data "scripts;scripts" `
+  --hidden-import paho.mqtt.client `
+  --hidden-import yaml `
+  --hidden-import psutil `
+  --collect-all paho `
+  --collect-all pywin32 `
+  main.py
+```
+
+Output: `dist/hass_mqtt_agent.exe`
+
+### 3. Build Linux Binary
+
+On Linux:
 
 ```bash
-pip install dist/hass_mqtt_agent-0.1.0-py3-none-any.whl
+pyinstaller --onefile \
+  --name hass_mqtt_agent \
+  --add-data "config.yaml.example:." \
+  --add-data "scripts:scripts" \
+  --hidden-import paho.mqtt.client \
+  --hidden-import yaml \
+  --hidden-import psutil \
+  --collect-all paho \
+  main.py
+```
+
+Output: `dist/hass_mqtt_agent`
+
+### 4. Organize Artifacts
+
+Manually move files to versioned folder:
+
+```bash
+# Get version from pyproject.toml
+VERSION="0.1.0"  # Replace with actual version
+
+# Create directory
+mkdir -p build/$VERSION
+
+# Copy artifacts
+cp dist/*.whl build/$VERSION/
+cp dist/hass_mqtt_agent* build/$VERSION/
+
+# Rename to include version
+mv build/$VERSION/hass_mqtt_agent.exe build/$VERSION/hass_mqtt_agent_$VERSION.exe
+mv build/$VERSION/hass_mqtt_agent build/$VERSION/hass_mqtt_agent_$VERSION
 ```
 
 ## Automated Builds (GitHub Actions)
 
-The project includes a GitHub Actions workflow that automatically builds wheels:
+The project includes a GitHub Actions workflow that automatically builds on both platforms.
 
-### On Tag Push
+### On Every Push
 
-Create and push a version tag to trigger a release build:
+Every push to `main` or `develop` branches triggers builds on both Windows and Linux with Python 3.10, 3.11, and 3.12 to ensure compatibility.
 
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
+**Workflow runs:**
+- ✅ Build wheel on both platforms
+- ✅ Build Windows .exe on Windows
+- ✅ Build Linux binary on Linux
+- ✅ Test imports on both platforms
+- ✅ Upload artifacts (kept for 30 days)
 
-This will:
-1. Build the wheel and source distribution
-2. Create a GitHub Release
-3. Upload the built artifacts to the release
+### Creating a Release
 
-### Manual Trigger
+To create a release with all artifacts:
 
-You can also manually trigger the build workflow from the GitHub Actions tab.
+1. **Update version in `pyproject.toml`:**
+   ```toml
+   [project]
+   version = "1.2.3"  # Update this
+   ```
 
-### On Pull Request
+2. **Commit and push:**
+   ```bash
+   git add pyproject.toml
+   git commit -m "Bump version to 1.2.3"
+   git push origin main
+   ```
 
-The workflow runs on pull requests to `main` to verify the package builds correctly.
+3. **Create and push version tag** (no 'v' prefix):
+   ```bash
+   git tag 1.2.3
+   git push origin 1.2.3
+   ```
 
-## What's Included in the Wheel
+4. **GitHub Actions automatically:**
+   - Builds on Windows and Linux
+   - Creates GitHub Release
+   - Uploads all 3 artifacts:
+     - `hass_mqtt_agent-1.2.3-py3-none-any.whl`
+     - `hass_mqtt_agent_1.2.3.exe`
+     - `hass_mqtt_agent_1.2.3` (Linux)
+     - `checksums.txt`
+   - Generates release notes
 
-The wheel includes:
+### Workflow Matrix
+
+The workflow tests multiple configurations:
+
+| Platform | Python Versions | Artifacts Created |
+|----------|----------------|-------------------|
+| Windows  | 3.10, 3.11, 3.12 | Wheel + .exe |
+| Linux    | 3.10, 3.11, 3.12 | Wheel + binary |
+
+**Note:** Wheels are platform-independent, so they're the same from all builds. The release uses the Python 3.10 build artifacts by preference.
+
+## What's Included in Each Build Type
+
+### Python Wheel (`.whl`)
+Cross-platform, requires Python installed.
+
+**Includes:**
 - `main.py` - Main agent code
 - `config.yaml.example` - Configuration template
-- `README.md` - Documentation
-- `QUICKSTART.md` - Quick start guide
-- `TROUBLESHOOTING.md` - Troubleshooting guide
-- `ARCHITECTURE.md` - Architecture documentation
-- `PROJECT_SUMMARY.md` - Project summary
-- `homeassistant_examples.yaml` - Home Assistant examples
+- `scripts/` - All setup and installation scripts
+- All documentation files (README, guides, etc.)
+- `homeassistant_examples.yaml` - Home Assistant config examples
+
+**Installation:**
+```bash
+pip install hass_mqtt_agent-<version>-py3-none-any.whl
+```
+
+### Windows Executable (`.exe`)
+Standalone application, no Python required.
+
+**Includes:**
+- Bundled Python interpreter
+- All dependencies (paho-mqtt, psutil, pywin32, etc.)
+- `config.yaml.example`
+- `scripts/` folder
+
+**Installation:**
+- Just download and run
+- No installation needed
+- Can install as Windows Service
+
+### Linux Binary
+Standalone application, no Python required.
+
+**Includes:**
+- Bundled Python interpreter
+- All dependencies (paho-mqtt, psutil, etc.)
+- `config.yaml.example`
+- `scripts/` folder
+
+**Installation:**
+```bash
+chmod +x hass_mqtt_agent_<version>
+./hass_mqtt_agent_<version>
+```
 - `install.ps1` - Windows installation script
 - `requirements.txt` - Dependencies list
 - `LICENSE` - MIT License
