@@ -36,6 +36,9 @@ test-cov:
 		echo "Open htmlcov/index.html in your browser"; \
 	fi
 
+update-badges:
+	python scripts/update_badges.py
+
 clean:
 	rm -rf build/
 	rm -rf dist/

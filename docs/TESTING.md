@@ -116,6 +116,11 @@ make test-cov
 
 # Terminal report with missing lines
 pytest tests/ --cov=src/hass_mqtt_agent --cov-report=term-missing
+
+# Update README badges with latest stats
+make update-badges
+# or
+python scripts/update_badges.py
 ```
 
 ### Watch Mode (for development)

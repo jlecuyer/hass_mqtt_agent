@@ -1,4 +1,11 @@
 # Home Assistant MQTT Agent
+
+[![Tests](https://img.shields.io/badge/tests-65%20passing-brightgreen)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-59%25-orange)](docs/TESTING.md)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)](docs/CROSS_PLATFORM.md)
+
 Control your PC from Home Assistant via MQTT. Cross-platform (Windows/Linux).
 ## Features
 - 🎮 **Remote Control** - Shutdown, reboot, sleep from Home Assistant
