@@ -11,6 +11,12 @@ import subprocess
 from pathlib import Path
 import re
 
+# Fix encoding on Windows
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
 
 def get_version():
     """Get version from pyproject.toml"""
@@ -27,7 +33,7 @@ def get_version():
 
 def clean_build_dirs():
     """Clean previous build artifacts"""
-    print("🧹 Cleaning previous build artifacts...")
+    print("Cleaning previous build artifacts...")
 
     dirs_to_clean = ['dist', 'build', '*.egg-info']
     for pattern in dirs_to_clean:
@@ -42,28 +48,28 @@ def clean_build_dirs():
 
 def build_wheel():
     """Build Python wheel"""
-    print("\n📦 Building Python wheel...")
+    print("\n[*] Building Python wheel...")
 
     try:
         subprocess.run([
             sys.executable, "-m", "build", "--wheel"
         ], check=True)
-        print("   ✅ Wheel built successfully")
+        print("   [OK] Wheel built successfully")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"   ❌ Failed to build wheel: {e}")
+        print(f"   [ERROR] Failed to build wheel: {e}")
         return False
 
 
 def build_windows_executable():
     """Build Windows executable using PyInstaller"""
-    print("\n🪟 Building Windows executable...")
+    print("\n[*] Building Windows executable...")
 
     # Check if PyInstaller is installed
     try:
         import PyInstaller
     except ImportError:
-        print("   ⚠️  PyInstaller not found. Installing...")
+        print("   [WARN] PyInstaller not found. Installing...")
         subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller"], check=True)
 
     version = get_version()
@@ -95,22 +101,22 @@ def build_windows_executable():
 
     try:
         subprocess.run(cmd, check=True)
-        print("   ✅ Windows executable built successfully")
+        print("   [OK] Windows executable built successfully")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"   ❌ Failed to build Windows executable: {e}")
+        print(f"   [ERROR] Failed to build Windows executable: {e}")
         return False
 
 
 def build_linux_binary():
     """Build Linux binary using PyInstaller"""
-    print("\n🐧 Building Linux binary...")
+    print("\n[*] Building Linux binary...")
 
     # Check if PyInstaller is installed
     try:
         import PyInstaller
     except ImportError:
-        print("   ⚠️  PyInstaller not found. Installing...")
+        print("   [WARN] PyInstaller not found. Installing...")
         subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller"], check=True)
 
     version = get_version()
@@ -132,10 +138,10 @@ def build_linux_binary():
 
     try:
         subprocess.run(cmd, check=True)
-        print("   ✅ Linux binary built successfully")
+        print("   [OK] Linux binary built successfully")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"   ❌ Failed to build Linux binary: {e}")
+        print(f"   [ERROR] Failed to build Linux binary: {e}")
         return False
 
 
@@ -185,22 +191,22 @@ def organize_artifacts():
                 artifacts_moved += 1
 
     if artifacts_moved == 0:
-        print("   ⚠️  No artifacts found to organize")
+        print("   [WARN] No artifacts found to organize")
         return False
 
-    print(f"   ✅ Organized {artifacts_moved} artifact(s)")
+    print(f"   [OK] Organized {artifacts_moved} artifact(s)")
     return True
 
 
 def create_checksums():
     """Create SHA256 checksums for all artifacts"""
-    print("\n🔐 Creating checksums...")
+    print("\n[*] Creating checksums...")
 
     version = get_version()
     version_dir = Path("build") / version
 
     if not version_dir.exists():
-        print("   ⚠️  No artifacts to checksum")
+        print("   [WARN] No artifacts to checksum")
         return
 
     import hashlib
@@ -222,7 +228,7 @@ def create_checksums():
     with open(checksums_file, 'w') as f:
         f.write('\n'.join(checksums) + '\n')
 
-    print(f"   ✅ Checksums saved to {checksums_file}")
+    print(f"   [OK] Checksums saved to {checksums_file}")
 
 
 def print_summary():
@@ -231,7 +237,7 @@ def print_summary():
     version_dir = Path("build") / version
 
     print("\n" + "="*60)
-    print("🎉 Build Summary")
+    print("Build Summary")
     print("="*60)
     print(f"Version: {version}")
     print(f"Build directory: {version_dir}")
@@ -240,28 +246,27 @@ def print_summary():
     if version_dir.exists():
         for artifact in sorted(version_dir.iterdir()):
             size = artifact.stat().st_size / (1024 * 1024)  # MB
-            print(f"  📦 {artifact.name} ({size:.2f} MB)")
+            print(f"  [*] {artifact.name} ({size:.2f} MB)")
     else:
-        print("  ⚠️  No artifacts found")
+        print("  [WARN] No artifacts found")
 
     print("="*60)
 
 
 def main():
     """Main build process"""
-    print("""
-╔════════════════════════════════════════════════════════════╗
-║                                                            ║
-║           HASS MQTT Agent - Build Script                  ║
-║                                                            ║
-╚════════════════════════════════════════════════════════════╝
-    """)
+    print("=" * 60)
+    print("")
+    print("       HASS MQTT Agent - Build Script")
+    print("")
+    print("=" * 60)
+    print()
 
     try:
         version = get_version()
         print(f"Version: {version}\n")
     except ValueError as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         return 1
 
     # Change to project root
@@ -289,13 +294,13 @@ def main():
     for step_name, step_func in steps:
         result = step_func()
         if result is False:
-            print(f"\n❌ Build failed at step: {step_name}")
+            print(f"\n[ERROR] Build failed at step: {step_name}")
             return 1
 
     # Print summary
     print_summary()
 
-    print("\n✅ Build completed successfully!")
+    print("\n[OK] Build completed successfully!")
     print(f"\nTo build on other platforms, run this script on that platform.")
     print(f"Artifacts are in: build/{version}/\n")
 
