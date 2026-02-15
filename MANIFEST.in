@@ -9,5 +9,5 @@ include CHANGELOG.md
 include config.yaml.example
 include homeassistant_examples.yaml
 include requirements.txt
-include install.ps1
+recursive-include scripts *.py *.ps1 *.md
 

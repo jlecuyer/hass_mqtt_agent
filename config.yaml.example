@@ -20,20 +20,30 @@ agent:
   # Predefined commands that can be executed
   # Format: command_name: "command to execute"
   custom_commands:
-    open_steam: "C:\\Program Files (x86)\\Steam\\steam.exe"
-    close_all_browsers: "taskkill /F /IM chrome.exe /IM firefox.exe /IM msedge.exe"
+    # Windows examples:
+    # open_steam: "C:\\Program Files (x86)\\Steam\\steam.exe"
+    # close_all_browsers: "taskkill /F /IM chrome.exe /IM firefox.exe /IM msedge.exe"
+
+    # Linux examples:
+    # open_firefox: "firefox"
+    # screenshot: "gnome-screenshot"
 
   # List of folders where games are installed
-  # The agent will scan these folders for .exe files and detect when they're running
-  # Supports environment variables like %PROGRAMFILES%
+  # The agent will scan these folders for executables and detect when they're running
+  # Supports environment variables like %PROGRAMFILES% (Windows) or $HOME (Linux)
   game_folders:
-    - "C:\\Program Files (x86)\\Steam\\steamapps\\common"
-    - "C:\\Program Files\\Epic Games"
-    - "C:\\Games"
-    # Examples:
-    # - "%PROGRAMFILES(X86)%\\Steam\\steamapps\\common"
-    # - "D:\\SteamLibrary\\steamapps\\common"
+    # Windows examples:
+    # - "C:\\Program Files (x86)\\Steam\\steamapps\\common"
     # - "C:\\Program Files\\Epic Games"
     # - "C:\\XboxGames"
+    # - "%PROGRAMFILES(X86)%\\Steam\\steamapps\\common"
+    # - "D:\\SteamLibrary\\steamapps\\common"
+
+    # Linux examples:
+    # - "$HOME/.steam/steam/steamapps/common"
+    # - "$HOME/.local/share/Steam/steamapps/common"
+    # - "$HOME/Games"
+    # - "/usr/games"
+    # - "~/.wine/drive_c/Program Files/Steam/steamapps/common"
 
 

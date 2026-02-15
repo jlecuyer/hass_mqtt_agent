@@ -1,6 +1,7 @@
 """
-Home Assistant MQTT Agent for Windows PC Control
-Provides remote control and status monitoring for Windows PCs via MQTT
+Home Assistant MQTT Agent for PC Control
+Provides remote control and status monitoring for PCs via MQTT
+Supports Windows and Linux platforms
 """
 
 import json
@@ -58,22 +59,33 @@ class PCStatusMonitor:
 
         logger.info(f"Scanning {len(self.game_folders)} game folder(s) for executables...")
 
+        is_windows = sys.platform == "win32"
+
         for folder_path in self.game_folders:
             try:
                 # Expand environment variables and resolve path
                 expanded_path = os.path.expandvars(folder_path)
+                expanded_path = os.path.expanduser(expanded_path)  # Support ~ on Linux
+
                 if not os.path.exists(expanded_path):
                     logger.warning(f"Game folder not found: {expanded_path}")
                     continue
 
-                # Scan for .exe files
+                # Scan for executables
                 exe_count = 0
                 for root, dirs, files in os.walk(expanded_path):
                     for file in files:
-                        if file.lower().endswith('.exe'):
-                            # Store just the executable name (lowercase for comparison)
-                            self.game_executables.add(file.lower())
-                            exe_count += 1
+                        file_path = os.path.join(root, file)
+                        # On Windows, check for .exe; on Linux, check if executable
+                        if is_windows:
+                            if file.lower().endswith('.exe'):
+                                self.game_executables.add(file.lower())
+                                exe_count += 1
+                        else:
+                            # On Linux, check if file is executable
+                            if os.path.isfile(file_path) and os.access(file_path, os.X_OK):
+                                self.game_executables.add(file.lower())
+                                exe_count += 1
 
                 logger.info(f"Found {exe_count} executable(s) in: {expanded_path}")
 
@@ -274,8 +286,16 @@ class HASSMQTTAgent:
         try:
             if sys.platform == "win32":
                 subprocess.run(["shutdown", "/s", "/t", "5", "/c", "Shutdown requested via Home Assistant"])
+            elif sys.platform.startswith("linux"):
+                # Try systemctl first (systemd), fall back to shutdown command
+                try:
+                    subprocess.run(["systemctl", "poweroff"], check=True)
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    subprocess.run(["sudo", "shutdown", "-h", "+1", "Shutdown requested via Home Assistant"])
+            elif sys.platform == "darwin":  # macOS
+                subprocess.run(["sudo", "shutdown", "-h", "+1", "Shutdown requested via Home Assistant"])
             else:
-                logger.warning("Shutdown command only supported on Windows")
+                logger.warning(f"Shutdown command not supported on platform: {sys.platform}")
         except Exception as e:
             logger.error(f"Error shutting down PC: {e}")
 
@@ -284,8 +304,16 @@ class HASSMQTTAgent:
         try:
             if sys.platform == "win32":
                 subprocess.run(["shutdown", "/r", "/t", "5", "/c", "Reboot requested via Home Assistant"])
+            elif sys.platform.startswith("linux"):
+                # Try systemctl first (systemd), fall back to shutdown command
+                try:
+                    subprocess.run(["systemctl", "reboot"], check=True)
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    subprocess.run(["sudo", "shutdown", "-r", "+1", "Reboot requested via Home Assistant"])
+            elif sys.platform == "darwin":  # macOS
+                subprocess.run(["sudo", "shutdown", "-r", "+1", "Reboot requested via Home Assistant"])
             else:
-                logger.warning("Reboot command only supported on Windows")
+                logger.warning(f"Reboot command not supported on platform: {sys.platform}")
         except Exception as e:
             logger.error(f"Error rebooting PC: {e}")
 
@@ -295,8 +323,20 @@ class HASSMQTTAgent:
             if sys.platform == "win32":
                 # Use rundll32 to call the sleep function
                 subprocess.run(["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"])
+            elif sys.platform.startswith("linux"):
+                # Try systemctl suspend (systemd)
+                try:
+                    subprocess.run(["systemctl", "suspend"], check=True)
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    # Fall back to pm-suspend if available
+                    try:
+                        subprocess.run(["sudo", "pm-suspend"], check=True)
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        logger.warning("Sleep command requires systemctl or pm-suspend")
+            elif sys.platform == "darwin":  # macOS
+                subprocess.run(["pmset", "sleepnow"])
             else:
-                logger.warning("Sleep command only supported on Windows")
+                logger.warning(f"Sleep command not supported on platform: {sys.platform}")
         except Exception as e:
             logger.error(f"Error putting PC to sleep: {e}")
 
@@ -590,9 +630,68 @@ def main():
 
     # Check if config exists
     if not os.path.exists('config.yaml'):
-        print("Error: config.yaml not found!")
-        print("Please copy config.yaml.example to config.yaml and update it with your settings.")
-        return
+        print("\n⚠️  Configuration file not found!")
+        print("\nYou have the following options:")
+        print("  1. Run the GUI setup wizard (recommended)")
+        print("  2. Run the terminal setup wizard")
+        print("  3. Manually copy config.yaml.example to config.yaml")
+        print("  4. Exit and configure later")
+
+        try:
+            choice = input("\nSelect option (1-4): ").strip()
+
+            if choice == '1':
+                # Try to launch GUI wizard
+                print("\n🚀 Launching GUI setup wizard...")
+                script_dir = Path(__file__).parent
+                gui_script = script_dir / "scripts" / "setup_config_gui.py"
+
+                if gui_script.exists():
+                    import subprocess
+                    result = subprocess.run([sys.executable, str(gui_script)])
+                    if result.returncode != 0:
+                        print("\n❌ GUI setup failed. Try option 2 for terminal setup.")
+                        return
+                    # Check if config was created
+                    if not os.path.exists('config.yaml'):
+                        print("\n❌ Configuration was not created.")
+                        return
+                else:
+                    print(f"❌ GUI script not found: {gui_script}")
+                    return
+
+            elif choice == '2':
+                # Launch terminal wizard
+                print("\n🚀 Launching terminal setup wizard...")
+                script_dir = Path(__file__).parent
+                cli_script = script_dir / "scripts" / "setup_config.py"
+
+                if cli_script.exists():
+                    import subprocess
+                    result = subprocess.run([sys.executable, str(cli_script)])
+                    if result.returncode != 0:
+                        print("\n❌ Terminal setup failed.")
+                        return
+                    # Check if config was created
+                    if not os.path.exists('config.yaml'):
+                        print("\n❌ Configuration was not created.")
+                        return
+                else:
+                    print(f"❌ Terminal script not found: {cli_script}")
+                    return
+
+            elif choice == '3':
+                print("\n📝 Please copy config.yaml.example to config.yaml and edit it.")
+                print("   Then run the agent again.")
+                return
+
+            else:
+                print("\n👋 Exiting. Run again when ready to configure.")
+                return
+
+        except (KeyboardInterrupt, EOFError):
+            print("\n\n👋 Cancelled.")
+            return
 
     try:
         agent = HASSMQTTAgent()
