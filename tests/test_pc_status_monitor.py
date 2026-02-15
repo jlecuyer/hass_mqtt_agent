@@ -61,16 +61,24 @@ class TestPCStatusMonitor(unittest.TestCase):
         self.assertIn("game2.exe", monitor.game_executables)
         self.assertNotIn("readme.txt", monitor.game_executables)
 
+    @patch('hass_mqtt_agent.main.os.access')
     @patch('sys.platform', 'linux')
-    def test_scan_game_folders_linux(self):
+    def test_scan_game_folders_linux(self, mock_access):
         """Test scanning game folders on Linux"""
         # Create test executables
         game1 = os.path.join(self.game_folder, "game1")
         non_executable = os.path.join(self.game_folder, "readme.txt")
 
         Path(game1).touch()
-        os.chmod(game1, 0o755)  # Make executable
         Path(non_executable).touch()
+
+        # Mock os.access to return True only for game1
+        def access_side_effect(path, mode):
+            if mode == os.X_OK:
+                return 'game1' in path
+            return True  # For other checks (F_OK, R_OK, etc.)
+
+        mock_access.side_effect = access_side_effect
 
         monitor = PCStatusMonitor([self.game_folder])
 
