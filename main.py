@@ -45,23 +45,71 @@ logger = logging.getLogger(__name__)
 class PCStatusMonitor:
     """Monitor PC status including sleep state and running games"""
 
-    def __init__(self, game_processes: List[str]):
-        self.game_processes = game_processes or []
+    def __init__(self, game_folders: List[str]):
+        self.game_folders = game_folders or []
+        self.game_executables: set = set()
+        self._scan_game_folders()
+
+    def _scan_game_folders(self):
+        """Scan game folders for executables"""
+        if not self.game_folders:
+            logger.info("No game folders configured for monitoring")
+            return
+
+        logger.info(f"Scanning {len(self.game_folders)} game folder(s) for executables...")
+
+        for folder_path in self.game_folders:
+            try:
+                # Expand environment variables and resolve path
+                expanded_path = os.path.expandvars(folder_path)
+                if not os.path.exists(expanded_path):
+                    logger.warning(f"Game folder not found: {expanded_path}")
+                    continue
+
+                # Scan for .exe files
+                exe_count = 0
+                for root, dirs, files in os.walk(expanded_path):
+                    for file in files:
+                        if file.lower().endswith('.exe'):
+                            # Store just the executable name (lowercase for comparison)
+                            self.game_executables.add(file.lower())
+                            exe_count += 1
+
+                logger.info(f"Found {exe_count} executable(s) in: {expanded_path}")
+
+            except Exception as e:
+                logger.error(f"Error scanning game folder {folder_path}: {e}")
+
+        logger.info(f"Total game executables tracked: {len(self.game_executables)}")
+
+    def rescan_game_folders(self):
+        """Rescan game folders (useful if games are installed/uninstalled)"""
+        self.game_executables.clear()
+        self._scan_game_folders()
 
     def is_game_running(self) -> bool:
         """Check if any game process is running"""
-        if not self.game_processes:
+        if not self.game_executables:
             return False
 
         try:
-            for proc in psutil.process_iter(['name']):
+            for proc in psutil.process_iter(['name', 'exe']):
                 try:
                     proc_name = proc.info['name']
-                    if proc_name:
-                        for game_pattern in self.game_processes:
-                            if game_pattern.replace('*', '') in proc_name.lower():
-                                logger.debug(f"Detected game process: {proc_name}")
-                                return True
+                    if proc_name and proc_name.lower() in self.game_executables:
+                        # Additional validation: check if the process path is in a game folder
+                        try:
+                            proc_exe = proc.info.get('exe', '')
+                            if proc_exe:
+                                for game_folder in self.game_folders:
+                                    expanded_folder = os.path.expandvars(game_folder)
+                                    if expanded_folder.lower() in proc_exe.lower():
+                                        logger.info(f"Detected game running: {proc_name} from {proc_exe}")
+                                        return True
+                        except (psutil.AccessDenied, psutil.NoSuchProcess):
+                            # If we can't get the full path, just trust the name match
+                            logger.info(f"Detected game running: {proc_name}")
+                            return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
         except Exception as e:
@@ -451,8 +499,8 @@ class HASSMQTTAgent:
         logger.info("Starting HASS MQTT Agent")
 
         # Initialize status monitor
-        game_processes = self.config.get('agent', {}).get('game_processes', [])
-        self.status_monitor = PCStatusMonitor(game_processes)
+        game_folders = self.config.get('agent', {}).get('game_folders', [])
+        self.status_monitor = PCStatusMonitor(game_folders)
 
         # Setup and start MQTT
         self._setup_mqtt()

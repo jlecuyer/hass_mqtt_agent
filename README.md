@@ -58,12 +58,12 @@ homeassistant:
 agent:
   status_update_interval: 30
   
-  # Add game executables to detect
-  game_processes:
-    - "steam.exe"
-    - "GTA5.exe"
-    - "csgo.exe"
-    # Add your games here
+  # Add folders where your games are installed
+  # The agent will scan these at startup to find all game executables
+  game_folders:
+    - "C:\\Program Files (x86)\\Steam\\steamapps\\common"
+    - "C:\\Program Files\\Epic Games"
+    - "D:\\SteamLibrary\\steamapps\\common"  # Add all your game library folders
 ```
 
 ### 3. Test the Agent
@@ -249,18 +249,22 @@ Send command via MQTT:
 mosquitto_pub -t "hass_agent/gaming_pc_01/command" -m "custom:open_steam"
 ```
 
-### Detecting Specific Games
+### Detecting Games
+
+The agent scans your game installation folders at startup to automatically detect all installed games:
 
 ```yaml
 agent:
-  game_processes:
-    - "GTA5.exe"
-    - "RDR2.exe"
-    - "csgo.exe"
-    - "valorant.exe"
-    - "leagueoflegends.exe"
-    - "minecraft.exe"
+  game_folders:
+    - "C:\\Program Files (x86)\\Steam\\steamapps\\common"
+    - "D:\\SteamLibrary\\steamapps\\common"  # Additional Steam library
+    - "C:\\Program Files\\Epic Games"
+    - "C:\\XboxGames"
+    - "%PROGRAMFILES(X86)%\\GOG Galaxy\\Games"  # Can use env variables
 ```
+
+When any executable from these folders runs, the agent detects it as gaming activity.
+The scan happens once at startup - restart the service after installing new games.
 
 ## License
 

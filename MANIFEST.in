@@ -1,0 +1,13 @@
+include README.md
+include LICENSE
+include QUICKSTART.md
+include TROUBLESHOOTING.md
+include ARCHITECTURE.md
+include PROJECT_SUMMARY.md
+include BUILD.md
+include CHANGELOG.md
+include config.yaml.example
+include homeassistant_examples.yaml
+include requirements.txt
+include install.ps1
+

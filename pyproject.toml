@@ -1,14 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "hass-mqtt-agent"
 version = "0.1.0"
 description = "Windows service agent for Home Assistant PC control via MQTT"
+readme = "README.md"
 requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Home Assistant MQTT Agent Contributors"}
+]
+keywords = ["home-assistant", "mqtt", "windows-service", "automation", "iot"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Home Automation",
+]
 dependencies = [
     "paho-mqtt>=1.6.1",
-    "pywin32>=306",
+    "pywin32>=306; sys_platform == 'win32'",
     "psutil>=5.9.0",
     "pyyaml>=6.0"
 ]
 
+[project.urls]
+Homepage = "https://github.com/yourusername/hass-mqtt-agent"
+Documentation = "https://github.com/yourusername/hass-mqtt-agent#readme"
+Repository = "https://github.com/yourusername/hass-mqtt-agent"
+Issues = "https://github.com/yourusername/hass-mqtt-agent/issues"
+
 [project.scripts]
 hass-mqtt-agent = "main:main"
+
+[tool.setuptools]
+py-modules = ["main"]
+

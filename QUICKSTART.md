@@ -173,17 +173,26 @@ automation:
 
 ### Add Game Detection
 
-1. Open Task Manager while a game is running
-2. Note the process name (e.g., "GTA5.exe")
-3. Edit `config.yaml`:
+1. Find where your games are installed (common locations):
+   - Steam: `C:\Program Files (x86)\Steam\steamapps\common`
+   - Epic Games: `C:\Program Files\Epic Games`
+   - Xbox: `C:\XboxGames`
+   - Additional Steam libraries: Check Steam Settings > Downloads > Steam Library Folders
+
+2. Edit `config.yaml`:
    ```yaml
    agent:
-     game_processes:
-       - "steam.exe"
-       - "GTA5.exe"  # Add your games
-       - "csgo.exe"
+     game_folders:
+       - "C:\\Program Files (x86)\\Steam\\steamapps\\common"
+       - "D:\\SteamLibrary\\steamapps\\common"  # If you have multiple drives
+       - "C:\\Program Files\\Epic Games"
+       - "C:\\XboxGames"
    ```
-4. Restart service: `python main.py restart`
+   
+3. Restart service: `python main.py restart`
+
+The agent will scan these folders at startup and detect when any game executable runs.
+After installing new games, restart the service to rescan.
 
 ### Create Automations
 
@@ -243,4 +252,5 @@ python main.py           # Run in console mode (for testing)
 **You're all set! Enjoy controlling your PC from Home Assistant! 🎉**
 
 For advanced usage, customization, and troubleshooting, see the other documentation files.
+
 

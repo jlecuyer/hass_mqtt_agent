@@ -23,15 +23,17 @@ agent:
     open_steam: "C:\\Program Files (x86)\\Steam\\steam.exe"
     close_all_browsers: "taskkill /F /IM chrome.exe /IM firefox.exe /IM msedge.exe"
 
-  # List of process names that indicate a game is running
-  game_processes:
-    - "*.exe"  # Add specific game executables
+  # List of folders where games are installed
+  # The agent will scan these folders for .exe files and detect when they're running
+  # Supports environment variables like %PROGRAMFILES%
+  game_folders:
+    - "C:\\Program Files (x86)\\Steam\\steamapps\\common"
+    - "C:\\Program Files\\Epic Games"
+    - "C:\\Games"
     # Examples:
-    # - "GTA5.exe"
-    # - "csgo.exe"
-    # - "minecraft.exe"
-    # - "leagueoflegends.exe"
-    # Or use patterns to detect game launchers
-    # - "steam.exe"
-    # - "EpicGamesLauncher.exe"
+    # - "%PROGRAMFILES(X86)%\\Steam\\steamapps\\common"
+    # - "D:\\SteamLibrary\\steamapps\\common"
+    # - "C:\\Program Files\\Epic Games"
+    # - "C:\\XboxGames"
+
 
