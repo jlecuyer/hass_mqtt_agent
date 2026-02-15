@@ -1,0 +1,37 @@
+# Home Assistant MQTT Agent Configuration
+# Copy this file to config.yaml and update with your settings
+
+mqtt:
+  broker: "192.168.1.100"  # Your MQTT broker IP address
+  port: 1883
+  username: "your_mqtt_username"  # Optional
+  password: "your_mqtt_password"  # Optional
+  client_id: "hass_pc_agent"
+
+homeassistant:
+  discovery_prefix: "homeassistant"
+  device_name: "Gaming PC"
+  device_id: "gaming_pc_01"
+
+agent:
+  # How often to update status (in seconds)
+  status_update_interval: 30
+
+  # Predefined commands that can be executed
+  # Format: command_name: "command to execute"
+  custom_commands:
+    open_steam: "C:\\Program Files (x86)\\Steam\\steam.exe"
+    close_all_browsers: "taskkill /F /IM chrome.exe /IM firefox.exe /IM msedge.exe"
+
+  # List of process names that indicate a game is running
+  game_processes:
+    - "*.exe"  # Add specific game executables
+    # Examples:
+    # - "GTA5.exe"
+    # - "csgo.exe"
+    # - "minecraft.exe"
+    # - "leagueoflegends.exe"
+    # Or use patterns to detect game launchers
+    # - "steam.exe"
+    # - "EpicGamesLauncher.exe"
+
