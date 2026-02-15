@@ -558,11 +558,14 @@ def main():
 
     except KeyboardInterrupt:
         print("\nStopping agent...")
-        agent.stop()
+        if 'agent' in locals():
+            agent.stop()
         print("Agent stopped.")
     except Exception as e:
         logger.error(f"Error: {e}")
         print(f"Error: {e}")
+        if 'agent' in locals():
+            agent.stop()
 
 
 if __name__ == '__main__':

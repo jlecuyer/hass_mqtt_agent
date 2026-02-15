@@ -1,0 +1,337 @@
+# Home Assistant Configuration Examples
+
+This file contains example YAML configurations to use with the MQTT Agent in Home Assistant.
+
+## Prerequisites
+
+The agent automatically creates entities via MQTT Discovery. Just ensure:
+1. MQTT integration is configured in Home Assistant
+2. The agent is running and connected
+3. Discovery prefix matches (default: `homeassistant`)
+
+## Entities Created
+
+After the agent connects, these entities will automatically appear:
+
+- `sensor.gaming_pc_status` - PC online/offline status
+- `binary_sensor.gaming_pc_game_running` - Whether a game is running
+- `sensor.gaming_pc_cpu` - CPU usage percentage
+- `sensor.gaming_pc_memory` - Memory usage percentage
+- `button.gaming_pc_shutdown` - Shutdown button
+- `button.gaming_pc_reboot` - Reboot button
+- `button.gaming_pc_sleep` - Sleep button
+
+## Example Automations
+
+### 1. Auto-shutdown when idle at night
+
+```yaml
+automation:
+  - alias: "Shutdown Gaming PC if idle late at night"
+    description: "Shutdown PC after midnight if no game is running"
+    trigger:
+      - platform: time
+        at: "01:00:00"
+    condition:
+      - condition: state
+        entity_id: sensor.gaming_pc_status
+        state: "online"
+      - condition: state
+        entity_id: binary_sensor.gaming_pc_game_running
+        state: "off"
+    action:
+      - service: button.press
+        target:
+          entity_id: button.gaming_pc_shutdown
+```
+
+### 2. Wake PC on demand
+
+```yaml
+automation:
+  - alias: "Wake Gaming PC"
+    description: "Wake PC when requested via input button"
+    trigger:
+      - platform: state
+        entity_id: input_button.wake_gaming_pc
+    condition:
+      - condition: state
+        entity_id: sensor.gaming_pc_status
+        state: "offline"
+    action:
+      - service: wake_on_lan.send_magic_packet
+        data:
+          mac: "AA:BB:CC:DD:EE:FF"  # Replace with your PC's MAC address
+          broadcast_address: "192.168.1.255"  # Your network broadcast address
+```
+
+### 3. Notification when game starts
+
+```yaml
+automation:
+  - alias: "Notify when game starts"
+    description: "Send notification when gaming session begins"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.gaming_pc_game_running
+        from: "off"
+        to: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "Gaming Session Started"
+          message: "A game is now running on your Gaming PC"
+```
+
+### 4. Smart shutdown when leaving home
+
+```yaml
+automation:
+  - alias: "Smart PC shutdown when leaving"
+    description: "Shutdown PC when everyone leaves, but only if no game is running"
+    trigger:
+      - platform: state
+        entity_id: group.all_persons
+        to: "not_home"
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: sensor.gaming_pc_status
+        state: "online"
+      - condition: state
+        entity_id: binary_sensor.gaming_pc_game_running
+        state: "off"
+    action:
+      - service: button.press
+        target:
+          entity_id: button.gaming_pc_shutdown
+```
+
+### 5. High resource usage alert
+
+```yaml
+automation:
+  - alias: "Alert on high PC resource usage"
+    description: "Notify if CPU or Memory usage is too high"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.gaming_pc_cpu
+        above: 90
+        for: "00:05:00"
+      - platform: numeric_state
+        entity_id: sensor.gaming_pc_memory
+        above: 95
+        for: "00:02:00"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "Gaming PC High Resource Usage"
+          message: >
+            CPU: {{ states('sensor.gaming_pc_cpu') }}%
+            Memory: {{ states('sensor.gaming_pc_memory') }}%
+```
+
+## Dashboard Cards
+
+### 1. Simple Control Card
+
+```yaml
+type: entities
+title: Gaming PC
+entities:
+  - entity: sensor.gaming_pc_status
+    name: Status
+  - entity: binary_sensor.gaming_pc_game_running
+    name: Game Running
+  - entity: sensor.gaming_pc_cpu
+    name: CPU Usage
+  - entity: sensor.gaming_pc_memory
+    name: Memory Usage
+  - entity: button.gaming_pc_shutdown
+    name: Shutdown
+  - entity: button.gaming_pc_reboot
+    name: Reboot
+  - entity: button.gaming_pc_sleep
+    name: Sleep
+```
+
+### 2. Detailed Card with Conditional Actions
+
+```yaml
+type: custom:mushroom-title-card
+title: Gaming PC Control
+subtitle: |
+  {% if is_state('sensor.gaming_pc_status', 'online') %}
+    Online - CPU: {{ states('sensor.gaming_pc_cpu') }}% | RAM: {{ states('sensor.gaming_pc_memory') }}%
+    {% if is_state('binary_sensor.gaming_pc_game_running', 'on') %}
+      🎮 Gaming
+    {% endif %}
+  {% else %}
+    Offline
+  {% endif %}
+```
+
+### 3. Gauge Card for Resources
+
+```yaml
+type: horizontal-stack
+cards:
+  - type: gauge
+    entity: sensor.gaming_pc_cpu
+    name: CPU
+    min: 0
+    max: 100
+    severity:
+      green: 0
+      yellow: 70
+      red: 90
+  - type: gauge
+    entity: sensor.gaming_pc_memory
+    name: Memory
+    min: 0
+    max: 100
+    severity:
+      green: 0
+      yellow: 80
+      red: 95
+```
+
+### 4. Conditional Button Card
+
+```yaml
+type: conditional
+conditions:
+  - entity: sensor.gaming_pc_status
+    state: "online"
+  - entity: binary_sensor.gaming_pc_game_running
+    state: "off"
+card:
+  type: button
+  name: Safe to Shutdown
+  icon: mdi:power
+  tap_action:
+    action: call-service
+    service: button.press
+    service_data:
+      entity_id: button.gaming_pc_shutdown
+```
+
+## Scripts
+
+### Wake and Wait Script
+
+```yaml
+script:
+  wake_gaming_pc:
+    alias: "Wake Gaming PC and Wait"
+    sequence:
+      - service: wake_on_lan.send_magic_packet
+        data:
+          mac: "AA:BB:CC:DD:EE:FF"
+      - wait_template: "{{ is_state('sensor.gaming_pc_status', 'online') }}"
+        timeout: "00:02:00"
+      - service: notify.mobile_app_your_phone
+        data:
+          message: >
+            {% if is_state('sensor.gaming_pc_status', 'online') %}
+              Gaming PC is now online!
+            {% else %}
+              Failed to wake Gaming PC
+            {% endif %}
+```
+
+### Safe Shutdown Script
+
+```yaml
+script:
+  safe_shutdown_gaming_pc:
+    alias: "Safe Shutdown Gaming PC"
+    sequence:
+      - if:
+          - condition: state
+            entity_id: binary_sensor.gaming_pc_game_running
+            state: "on"
+        then:
+          - service: notify.mobile_app_your_phone
+            data:
+              title: "Cannot Shutdown"
+              message: "A game is currently running on the Gaming PC"
+        else:
+          - service: button.press
+            target:
+              entity_id: button.gaming_pc_shutdown
+          - service: notify.mobile_app_your_phone
+            data:
+              message: "Gaming PC shutdown initiated"
+```
+
+## Input Helpers
+
+Add these to your `configuration.yaml` or create via UI:
+
+```yaml
+input_button:
+  wake_gaming_pc:
+    name: Wake Gaming PC
+    icon: mdi:power-on
+
+input_boolean:
+  auto_shutdown_gaming_pc:
+    name: Auto-shutdown Gaming PC at night
+    icon: mdi:power-sleep
+```
+
+## Custom Commands via MQTT
+
+To send custom commands defined in your agent's config.yaml:
+
+```yaml
+script:
+  open_steam_on_pc:
+    alias: "Open Steam on Gaming PC"
+    sequence:
+      - service: mqtt.publish
+        data:
+          topic: "hass_agent/gaming_pc_01/command"
+          payload: "custom:open_steam"
+```
+
+## Advanced: Template Sensors
+
+```yaml
+template:
+  - sensor:
+      - name: "Gaming PC Uptime"
+        state: >
+          {% if is_state('sensor.gaming_pc_status', 'online') %}
+            {{ relative_time(states.sensor.gaming_pc_status.last_changed) }}
+          {% else %}
+            Offline
+          {% endif %}
+
+      - name: "Gaming PC State"
+        state: >
+          {% if is_state('sensor.gaming_pc_status', 'offline') %}
+            Offline
+          {% elif is_state('binary_sensor.gaming_pc_game_running', 'on') %}
+            Gaming
+          {% else %}
+            Idle
+          {% endif %}
+        icon: >
+          {% if is_state('binary_sensor.gaming_pc_game_running', 'on') %}
+            mdi:gamepad-variant
+          {% elif is_state('sensor.gaming_pc_status', 'online') %}
+            mdi:desktop-tower
+          {% else %}
+            mdi:desktop-tower-monitor
+          {% endif %}
+```
+
+## Notes
+
+- Replace `gaming_pc` with your actual device_id from config.yaml
+- Replace MAC addresses with your PC's actual MAC address
+- Adjust entity names if you changed the device_name in config.yaml
+- All entities support the standard Home Assistant availability tracking
+
