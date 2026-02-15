@@ -39,8 +39,14 @@ Repository = "https://github.com/yourusername/hass-mqtt-agent"
 Issues = "https://github.com/yourusername/hass-mqtt-agent/issues"
 
 [project.scripts]
-hass-mqtt-agent = "main:main"
+hass-mqtt-agent = "hass_mqtt_agent.main:main"
 
 [tool.setuptools]
-py-modules = ["main"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hass_mqtt_agent = ["py.typed"]
 

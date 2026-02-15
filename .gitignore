@@ -1,5 +1,7 @@
 # Configuration
 config.yaml
+config/config.yaml
+!config/*.example
 
 # Logs
 *.log
