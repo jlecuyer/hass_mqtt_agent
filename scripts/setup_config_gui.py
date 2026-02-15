@@ -8,11 +8,13 @@ import os
 import sys
 import yaml
 import socket
+import threading
 from pathlib import Path
 
 try:
     import tkinter as tk
     from tkinter import ttk, messagebox, filedialog, scrolledtext
+    import tkinter.font as tkfont
 except ImportError:
     print("Error: tkinter is not available.")
     print("On Linux, install with: sudo apt-get install python3-tk")
@@ -25,8 +27,17 @@ class SetupWizard:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("HASS MQTT Agent - Configuration Wizard")
-        self.root.geometry("700x600")
+        self.root.geometry("750x650")
         self.root.resizable(True, True)
+
+        # Configure better fonts for Ubuntu/Linux
+        if sys.platform.startswith('linux'):
+            default_font = tkfont.nametofont("TkDefaultFont")
+            default_font.configure(family="Ubuntu", size=10)
+            text_font = tkfont.nametofont("TkTextFont")
+            text_font.configure(family="Ubuntu", size=10)
+            fixed_font = tkfont.nametofont("TkFixedFont")
+            fixed_font.configure(family="Ubuntu Mono", size=10)
 
         # Configuration data
         self.config = {
@@ -41,6 +52,7 @@ class SetupWizard:
         # Current page
         self.current_page = 0
         self.pages = []
+        self.mqtt_validated = False
 
         # Create UI
         self.create_widgets()
@@ -55,7 +67,7 @@ class SetupWizard:
         title_label = tk.Label(
             header,
             text="HASS MQTT Agent Setup",
-            font=("Arial", 20, "bold"),
+            font=("Ubuntu" if sys.platform.startswith('linux') else "Arial", 18, "bold"),
             bg="#2196F3",
             fg="white"
         )
@@ -129,13 +141,31 @@ Click 'Next' to begin.
         """Create MQTT configuration page"""
         page = tk.Frame(self.content_frame)
 
-        tk.Label(page, text="MQTT Broker Configuration", font=("Arial", 14, "bold")).pack(pady=10)
+        tk.Label(page, text="MQTT Broker Configuration",
+                font=("Ubuntu" if sys.platform.startswith('linux') else "Arial", 14, "bold")).pack(pady=10)
 
-        # Broker IP
-        tk.Label(page, text="Broker IP Address:").pack(anchor=tk.W, pady=(10, 0))
+        # Broker IP with Auto button
+        broker_frame = tk.Frame(page)
+        broker_frame.pack(fill=tk.X, pady=(10, 0))
+
+        tk.Label(broker_frame, text="Broker IP Address:").pack(side=tk.LEFT)
+
+        auto_btn = tk.Button(
+            broker_frame,
+            text="[Auto]",
+            command=self.auto_discover_broker,
+            bg="#2196F3",
+            fg="white",
+            width=8
+        )
+        auto_btn.pack(side=tk.RIGHT, padx=5)
+
         self.mqtt_broker = tk.Entry(page, width=40)
         self.mqtt_broker.insert(0, "192.168.1.100")
         self.mqtt_broker.pack(pady=5)
+
+        self.broker_status = tk.Label(page, text="", fg="gray")
+        self.broker_status.pack()
 
         # Port
         tk.Label(page, text="Port:").pack(anchor=tk.W, pady=(10, 0))
@@ -164,13 +194,128 @@ Click 'Next' to begin.
         self.mqtt_password = tk.Entry(page, width=40, show="*")
         self.mqtt_password.pack(pady=5)
 
-        # Client ID
+        # Client ID - default to hostname
         tk.Label(page, text="Client ID:").pack(anchor=tk.W, pady=(10, 0))
         self.mqtt_client_id = tk.Entry(page, width=40)
-        self.mqtt_client_id.insert(0, "hass_pc_agent")
+        self.mqtt_client_id.insert(0, socket.gethostname().lower().replace(" ", "_"))
         self.mqtt_client_id.pack(pady=5)
 
+        # Validation button
+        validate_frame = tk.Frame(page)
+        validate_frame.pack(pady=20)
+
+        self.validate_btn = tk.Button(
+            validate_frame,
+            text="🔍 Validate Connection",
+            command=self.validate_mqtt_connection,
+            bg="#FF9800",
+            fg="white",
+            width=20
+        )
+        self.validate_btn.pack()
+
+        self.validation_status = tk.Label(page, text="", font=("Ubuntu" if sys.platform.startswith('linux') else "Arial", 10))
+        self.validation_status.pack()
+
         self.pages.append(page)
+
+    def auto_discover_broker(self):
+        """Auto-discover MQTT broker on network"""
+        self.broker_status.config(text="🔍 Scanning network for MQTT brokers...", fg="blue")
+        self.root.update()
+
+        def scan_network():
+            try:
+                import subprocess
+                # Get local network
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                local_ip = s.getsockname()[0]
+                s.close()
+
+                # Scan common MQTT ports on local network
+                network_prefix = '.'.join(local_ip.split('.')[:-1])
+
+                for i in range(1, 255):
+                    test_ip = f"{network_prefix}.{i}"
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(0.1)
+                    result = sock.connect_ex((test_ip, 1883))
+                    sock.close()
+
+                    if result == 0:
+                        self.mqtt_broker.delete(0, tk.END)
+                        self.mqtt_broker.insert(0, test_ip)
+                        self.broker_status.config(
+                            text=f"✓ Found MQTT broker at {test_ip}",
+                            fg="green"
+                        )
+                        return
+
+                self.broker_status.config(
+                    text="⚠ No MQTT broker found on network",
+                    fg="orange"
+                )
+            except Exception as e:
+                self.broker_status.config(
+                    text=f"❌ Scan failed: {str(e)}",
+                    fg="red"
+                )
+
+        # Run scan in thread to not block UI
+        threading.Thread(target=scan_network, daemon=True).start()
+
+    def validate_mqtt_connection(self):
+        """Validate MQTT connection"""
+        self.validation_status.config(text="🔄 Validating connection...", fg="blue")
+        self.validate_btn.config(state=tk.DISABLED)
+        self.root.update()
+
+        def test_connection():
+            try:
+                import paho.mqtt.client as mqtt
+
+                broker = self.mqtt_broker.get()
+                port = int(self.mqtt_port.get())
+                username = self.mqtt_username.get() if self.mqtt_auth.get() else None
+                password = self.mqtt_password.get() if self.mqtt_auth.get() else None
+
+                # Create test client
+                client = mqtt.Client()
+
+                if username and password:
+                    client.username_pw_set(username, password)
+
+                # Try to connect
+                client.connect(broker, port, 5)
+                client.loop_start()
+
+                # Give it a moment
+                import time
+                time.sleep(1)
+
+                client.disconnect()
+                client.loop_stop()
+
+                self.validation_status.config(
+                    text="✅ Connection successful!",
+                    fg="green"
+                )
+                self.mqtt_validated = True
+                self.next_btn.config(state=tk.NORMAL)
+
+            except Exception as e:
+                self.validation_status.config(
+                    text=f"❌ Connection failed: {str(e)}",
+                    fg="red"
+                )
+                self.mqtt_validated = False
+
+            finally:
+                self.validate_btn.config(state=tk.NORMAL)
+
+        # Run test in thread
+        threading.Thread(target=test_connection, daemon=True).start()
 
     def toggle_mqtt_auth(self):
         """Toggle MQTT authentication fields"""
@@ -342,6 +487,19 @@ Click 'Next' to begin.
 
             # Update buttons
             self.back_btn.config(state=tk.NORMAL if index > 0 else tk.DISABLED)
+
+            # Disable Next on MQTT page until validated
+            if index == 1:  # MQTT page
+                if not self.mqtt_validated:
+                    self.next_btn.config(state=tk.DISABLED)
+                    self.validation_status.config(
+                        text="⚠ Please validate connection before continuing",
+                        fg="orange"
+                    )
+                else:
+                    self.next_btn.config(state=tk.NORMAL)
+            else:
+                self.next_btn.config(state=tk.NORMAL)
 
             if index == len(self.pages) - 1:
                 # Last page - show Save button

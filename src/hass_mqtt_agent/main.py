@@ -643,8 +643,8 @@ def main():
             if choice == '1':
                 # Try to launch GUI wizard
                 print("\n🚀 Launching GUI setup wizard...")
-                script_dir = Path(__file__).parent
-                gui_script = script_dir / "scripts" / "setup_config_gui.py"
+                # Scripts are in project root, not in package
+                gui_script = Path("scripts") / "setup_config_gui.py"
 
                 if gui_script.exists():
                     import subprocess
@@ -658,13 +658,14 @@ def main():
                         return
                 else:
                     print(f"❌ GUI script not found: {gui_script}")
+                    print("   Make sure you're running from the project root directory.")
                     return
 
             elif choice == '2':
                 # Launch terminal wizard
                 print("\n🚀 Launching terminal setup wizard...")
-                script_dir = Path(__file__).parent
-                cli_script = script_dir / "scripts" / "setup_config.py"
+                # Scripts are in project root, not in package
+                cli_script = Path("scripts") / "setup_config.py"
 
                 if cli_script.exists():
                     import subprocess
@@ -678,6 +679,7 @@ def main():
                         return
                 else:
                     print(f"❌ Terminal script not found: {cli_script}")
+                    print("   Make sure you're running from the project root directory.")
                     return
 
             elif choice == '3':
